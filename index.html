@@ -1,0 +1,410 @@
+<?php
+
+// The link to this page:
+$targetpage = 'index.html';
+$mainsite = 'https://www.mcz.harvard.edu';
+//$mainsite = 'http://hwpi.harvard.edu/mcz';
+// set to true to show query results
+$debug = false;
+
+define("OTHER","other");
+
+$higher_taxon = "";
+$publication = "";
+$other_subject = "";
+$paleo="";
+$department="";
+$bhl = "";
+$term = "";
+$showhollis = false;
+$mode = "form";
+include_once("mcz_connection_lib.php");
+
+if (@$_GET['higher_taxon']!="") { 
+  $higher_taxon=preg_replace("/[^A-Za-z\ ]/","",$_GET['higher_taxon']);
+  $mode = "query";
+}
+if (@$_GET['term']!="") { 
+  $term=preg_replace("/[^A-Za-z0-9\%\.\,\:\ ]/","",$_GET['term']);
+  $mode = "query";
+}
+if (@$_GET['department']!="") { 
+  $department=preg_replace("/[^A-Za-z\ \,]/","",$_GET['department']);
+  $mode = "query";
+}
+if (@$_GET['other_subject']!="") { 
+  $other_subject=preg_replace("/[^A-Za-z\ ]/","",$_GET['other_subject']);
+  $mode = "query";
+}
+if (@$_GET['paleo']!="") { 
+  $paleo=preg_replace("/[^A-Za-z\ ]/","",$_GET['paleo']);
+  $mode = "query";
+}
+if (@$_GET['hollis']=="on") { 
+  $showhollis=true;
+}
+
+// default sort order 
+$order = " order by p.published_year desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'volume'),10) desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc, MCZBASE.get_publication_authors(p.publication_id) ";
+
+
+if (@$_GET['publication']!="") { 
+  $publication=preg_replace("/[^A-Za-z]/","",$_GET['publication']);
+  switch ($publication) {
+     case "Breviora": 
+        $bhl ="<p><strong>Breviora</strong> can be downloaded via this MCZ web page and <a href='http://www.bioone.org/perlserv/?request=get-archive&issn=0006-9698'>BioOne</a> while issues older than 2004 can be found in the <a href='http://www.biodiversitylibrary.org/bibliography/3989'>Biodiversity Heritage Library</a>.</p>";
+        // sort breviora in descending order by number only.
+        $order = " order by lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc ";   
+        break;
+     case "bullmcz":
+        $publication = "Bulletin of the Museum of Comparative Zoology";
+        // sort mcz bulletin by year, volume, number, but with special publications first.
+         $order = " order by p.published_year desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'volume'),10) desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc";
+        //$order = " order by MCZBASE.get_publication_attribute(p.publication_id,'journal name') desc,  p.published_year desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'volume'),10) desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc";
+        $bhl ="<p>The <strong>MCZ Bulletin</strong> can be downloaded via this MCZ web page and <a href='http://www.bioone.org/perlserv/?request=get-archive&issn=0027-4100'>BioOne</a> while issues older than 2004 can be found in the <a href='http://www.biodiversitylibrary.org/bibliography/2803'>Biodiversity Heritage Library</a>.</p>";
+        break;
+     case "bullmczsp":
+        $publication = "Bulletin of the Museum of Comparative Zoology Special Publications Series";
+        // sort mcz bulletin sp by number
+        $order = " order by lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc";
+        $bhl ="<p>The <strong>Bulletin of the MCZ Special Publications</strong> can be downloaded via this MCZ web page and <a href='http://www.bioone.org/perlserv/?request=get-archive&issn=0027-4100'>BioOne</a>.</p>";
+        break;
+     case "memoirs":
+        $publication = "Memoirs of the Museum of Comparative Zoology";
+        $bhl ="<p><strong>Memoirs of the MCZ</strong> can be found in the <a href='http://www.biodiversitylibrary.org/bibliography/3345'>Biodiversity Heritage Library</a>.</p>";
+        // default sort order
+        break;        
+     case "occpapmol":
+        $publication = "Occasional Papers on Mollusks";
+        // sort occasional papers on mollusks by year, volume, number
+        $order = " order by p.published_year desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'volume'),10) desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc";
+        $bhl ="<p>The <strong>Occasional Papers on Mollusks</strong> can be found in the <a href='http://www.biodiversitylibrary.org/bibliography/5384'>Biodiversity Heritage Library</a>.</p>";
+        break;
+     case "spoccpapmol":
+        $publication = OTHER;
+        $mczpublication = "Special Occasional Publication [on Mollusks]";
+        // sort special occasional papers on mollusks by year, volume, number
+        $order = " order by p.published_year desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'volume'),10) desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'number'),10) desc";
+        $bhl ="<p>The <strong>Special Occasional Publications</strong> (often referred to as Special Occasional Papers on Mollusks) published large monographs, bibliographic works and English translations of original monographs.  Eleven issues were printed between 1973-1992 and can be found in the <a href='http://www.biodiversitylibrary.org/bibliography/5370'>Biodiversity Heritage Library</a>.</p>";
+        break;
+      case "johnsonia":
+         $publication = "Johnsonia";
+         // sort Johnsonia by year, volume, issue
+         $order = " order by p.published_year desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'volume'),10) desc, lpad(MCZBASE.get_publication_attribute(p.publication_id,'issue'),10) desc";
+         $bhl ="<p><strong>Johnsonia</strong> can be found in the <a href='http://www.biodiversitylibrary.org/bibliography/62834'>Biodiversity Heritage Library</a>.</p>";
+         break;
+     case "booksmonographs":
+        $publication = OTHER;
+        $mczpublication = "Books and Monographs";
+        // default sort order
+        $bhl ="<p>Books and Monographs published by the MCZ may be found in the <a href='http://www.biodiversitylibrary.org/bibliography/2803'>Biodiversity Heritage Library</a>.</p>";
+        break;
+     case "annualreports":
+        // NOTE: Add new cases in this form for other new values for the "MCZ publication" attribute.
+        $publication = OTHER;
+        $mczpublication = "Annual Report";
+        // default sort order
+        $bhl ="<p>Annual Reports published by the MCZ may be found in the <a href='http://www.biodiversitylibrary.org/bibliography/2803'>Biodiversity Heritage Library</a>.</p>";
+        break;
+     case "newsletter":
+        // NOTE: Add new cases in this form for other new values for the "MCZ publication" attribute.
+        $publication = OTHER;
+        $mczpublication = "Newsletter";
+        // default sort order
+        $bhl ="<p>Newsletters published by the MCZ may be found in the <a href='http://www.biodiversitylibrary.org/bibliography/2803'>Biodiversity Heritage Library</a>.</p>";
+        break;
+
+     default;
+  }
+  $mode = "query";
+}
+
+if (@$_GET['list']!="") { 
+   if (@$_GET['list']=="taxa") { $mode = "list_taxa"; } 
+   if (@$_GET['list']=="topics") { $mode = "list_topics"; } 
+   if (@$_GET['list']=="departments") { $mode = "list_departments"; } 
+}
+
+function head($head) { 
+   global $targetpage, $mainsite;
+   $area = "Publications";
+   include("pub_header.html");
+}
+
+function foot() {
+   global $targetpage, $mainsite;
+   include("pub_footer.html");
+}
+
+
+function do_query($sql,$headbit) { 
+global $showhollis, $debug;
+$pdf = '';
+$supplement = '';
+@$connection=mczbase_connect();
+if ($connection) {
+   $result = oci_parse($connection, $sql);
+   oci_execute($result);
+   if ($debug===true) { echo "[$sql]"; }
+   if ($debug===true) { echo oci_error(); }
+   echo "<ul>";
+   while ($row = oci_fetch_object($result)) { 
+        $publication_id = $row->PUBLICATION_ID;
+        $authors = $row->AUTHORS;
+        $editors = $row->EDITORS;
+        $year = $row->PUBLISHED_YEAR;
+        $title = $row->PUBLICATION_TITLE;
+        $journal = $row->JOURNAL;
+        $volume = $row->VOLUME;
+        $number = $row->PNUMBER;
+        $issue = $row->ISSUE;
+        $page = $row->PAGE_TOTAL;
+        $begin_page = $row->BEGIN_PAGE;
+        $end_page = $row->END_PAGE;
+        $hollis_no = $row->HOLLIS_NO;
+        $bhl = $row->LINKS;
+        $specimens = $row->SPECIMENS;
+        $publisher = $row->PUBLISHER;
+        
+        if ($number==null && $issue!=null) { 
+           $number = $issue;
+        }
+        if ($begin_page!=null && $end_page !=null) { 
+           $page = "$begin_page-$end_page";
+        }
+        if (strpos($page,"-")===false && strpos($page,"p")===false) { 
+           $page = "$page pp.";
+        }
+        $hollis = "";
+        if ($showhollis===true && $hollis_no!="") { 
+          $hollis = " [<a href='http://lms01.harvard.edu/F/?func=find-b&find_code=SYS&request=$hollis_no&adjacent=1'>Hollis</a>]";
+        } 
+        $specimenlink = "";
+        if ($specimens > 0) { 
+          $specimenlink = " [<a href='http://mczbase.mcz.harvard.edu/SpecimenResults.cfm?publication_id=$publication_id'>MCZ specimens</a>]";
+        } 
+        $pdflink = "";
+        if ($pdf!="") { 
+          $pdflink = " [<a href='pubs/$pdf'>pdf</a>]";
+        } 
+          
+        if ($supplement!="") { 
+          $pdflink .= " [<a href='supplements/$supplement'>Supplemental&nbsp;material</a>]";
+        } 
+         if ($bhl!="") { 
+          $pdflink .= " [$bhl]";
+        } 
+        $title = preg_replace('/\.$/','',trim($title));  // strip trailing period, if any from title.
+        $authors = preg_replace('/\.$/','',trim($authors));  // strip trailing period, if any from authors.
+        $editors = preg_replace('/\.$/','',trim($editors));  // strip trailing period, if any from editors.
+        $comma = ",";
+        if (strlen($journal) == 0) {
+           $comma = ""; 
+           $journal = $publisher;
+        } 
+        
+        $colonpage = ":";
+        $period = ". ";
+        if (strlen($authors)==0) { $period = ""; } 
+        if (strlen($editors)>0) { 
+          if (strpos($editors," and ")>0) {
+             $editors = " [$editors eds.] "; 
+          } else {
+             $editors = " [$editors ed.] "; 
+          }
+        } 
+        if (strlen($volume) == 0 && strlen($number)==0 ) { $colonpage = "p."; } 
+        $astyle = "style='font-variant: small-caps;'";
+        if ($journal=="Breviora") { 
+           $citation = "<span $astyle >$authors</span>. $year. $title. $journal$comma <strong>$number</strong>:$page $hollis $pdflink $specimenlink";
+        } elseif ($journal=="Bulletin of the Museum of Comparative Zoology Special Publications Series") { 
+           $citation = "<span $astyle >$authors</span>. $year. $title. $journal$comma no. $number. $publisher. p. $page $hollis $pdflink $specimenlink";
+        } else { 
+           if (strlen($number) > 0) { $number = "($number)"; }
+           $citation = "<span $astyle >$authors</span>$period$editors$year. $title. $journal$comma <strong>$volume</strong>$number$colonpage$page $hollis $pdflink $specimenlink";
+        }
+        echo "<li>$citation</li>"; 
+   }
+   echo "</ul>";
+   echo "</p>"; 
+} else {
+  echo "Unable to connect to database.";
+}
+}
+
+$select = "select distinct p.publication_id, MCZBASE.get_publication_authors(p.publication_id) as authors, MCZBASE.get_publication_editors(p.publication_id) as editors, p.published_year, p.publication_title,  MCZBASE.get_publication_attribute(p.publication_id,'journal name') as journal, MCZBASE.get_publication_attribute(p.publication_id,'volume') as volume, MCZBASE.get_publication_attribute(p.publication_id,'number') as pnumber, MCZBASE.get_publication_attribute(p.publication_id,'issue') as issue,  MCZBASE.get_publication_attribute(p.publication_id,'page total') as page_total,  MCZBASE.get_publication_attribute(p.publication_id,'begin page') as begin_page, MCZBASE.get_publication_attribute(p.publication_id,'end page') as end_page, MCZBASE.get_publication_attribute(p.publication_id,'HOLLIS number') as hollis_no, '' as pdf, MCZBASE.get_mcz_pubs_links(p.publication_id) as links, MCZBASE.get_publication_citation_count(p.publication_id) as specimens, MCZBASE.get_publication_attribute(p.publication_id,'publisher') as publisher ";
+
+switch ($mode) {
+
+  case "list_taxa": 
+    // taxonomic groups
+    head(" by Higher Taxon");
+    echo "<p>MCZ publications have covered many different groups of organisms.  Individual publications are often on single species or small groups of species, so this list is provided as a finding aid for publications grouped by arbitrary higher taxa.</p>";
+    @$connection=mczbase_connect();
+    if ($connection) {
+       $sql="select count(publication_id), pub_att_value from MCZBASE.publication_attributes where publication_attribute = 'higher taxon' group by pub_att_value order by pub_att_value";
+       $result = oci_parse($connection,$sql);
+       oci_execute($result);
+       echo "<ul>";
+       while ($row = oci_fetch_row($result)) { 
+          $higher_taxon = trim($row[1]);
+          $url_higher_taxon = urlencode($higher_taxon);
+          $count = $row[0];
+          if ($higher_taxon!="") {
+            echo "<li><a href='$targetpage?higher_taxon=$url_higher_taxon'>$higher_taxon</a> ($count)</li>";
+          }
+       }
+       echo "</ul>";
+    }
+    foot();
+    break;
+
+  case "list_topics": 
+    // other topics than taxonomy
+    head(" on Other Topics");
+    echo "<p>Most of the MCZ publications are on zoological taxonomy and systematics.  This list of publications on other topics is provided as a finding aid.</p>";
+    @$connection=mczbase_connect();
+    if ($connection) {
+       echo "<ul>";
+       // Other topics
+       $sql="select count(publication_id), pub_att_value from MCZBASE.publication_attributes where publication_attribute = 'other subject' group by pub_att_value order by pub_att_value";
+       $result = oci_parse($connection,$sql);
+       oci_execute($result);
+       while($row = oci_fetch_row($result)) {
+          $other_subject = trim($row[1]);
+          $url_other_subject = urlencode($other_subject);
+          $count = $row[0];
+          echo "<li><a href='$targetpage?other_subject=$url_other_subject'>$other_subject</a> ($count)</li>";
+       }
+       echo "</ul>";
+    }
+    foot();
+    break;
+
+  case "list_departments": 
+    // department
+    head(" by Department");
+    echo "<p>This list of MCZ publications grouped by the relevant department within the MCZ is provided as a finding aid.</p>";
+    @$connection=mczbase_connect();
+    if ($connection) {
+       echo "<ul>";
+       $sql="select count(publication_id), pub_att_value from MCZBASE.publication_attributes where publication_attribute = 'department' group by pub_att_value order by pub_att_value";
+       $result = oci_parse($connection,$sql);
+       oci_execute($result);
+       while ($row = oci_fetch_row($result)) { 
+          $department = trim($row[1]);
+      
+          
+          if ($department == "Geology" || $department == 'Botany') { 
+              // treat geology and botany as special cases and hide them.  
+          } else { 
+             $url_department = urlencode($department);
+             
+             $count = $row[0];
+             echo "<li><a href='$targetpage?department=$url_department'>$department</a> ($count)</li>"; 
+          } 
+       }
+       echo "</ul>";
+    }
+    foot();
+    break;
+  
+  case "query":
+    $and = "";
+    $headbit = "";
+    $wherebit = ""; 
+    $topic = "";
+    if ($publication!="") {
+       if ($publication==OTHER) { 
+           $headbit .= " $mczpublication";
+           $wherebit .= " $and MCZBASE.get_publication_attribute(p.publication_id, 'MCZ publication') = '$mczpublication' ";
+           $and = " and ";
+       } else  {
+           $headbit .= " $publication";
+           if ($publication=="Bulletin of the Museum of Comparative Zoology") { 
+               $wherebit .= " $and MCZBASE.get_publication_attribute(p.publication_id, 'journal name') like '$publication%' ";
+           } else { 
+               $wherebit .= " $and MCZBASE.get_publication_attribute(p.publication_id, 'journal name') = '$publication' ";
+           }
+           $and = " and ";
+       }
+    }
+    if ($higher_taxon!="") {
+       $headbit .= " $higher_taxon";
+       $topic = $higher_taxon;
+       $wherebit .= " $and  MCZBASE.get_publication_attribute(p.publication_id, 'higher taxon') = '$higher_taxon' ";
+       $and = " and ";
+    }
+    if ($paleo!="") {
+       $headbit .= " $paleo";
+       $topic .= $and.$paleo;
+       $wherebit .= " $and paleo = '$paleo' ";
+       $and = " and ";
+    }
+    if ($department!="") {
+       $headbit .= " $department";
+       $topic .= $and.$department;
+       $wherebit .= " $and  MCZBASE.get_publication_attribute(p.publication_id, 'department') = '$department' ";
+       $and = " and ";
+       $subtitle = "help";
+    }
+    if ($other_subject!="") {
+       $headbit .= " $other_subject";
+       $topic .= $and.$other_subject;
+       $wherebit .= " $and  MCZBASE.get_publication_attribute(p.publication_id, 'other subject') = '$other_subject' ";
+       $and = " and ";
+    }
+    if ($term!="") {
+       $headbit .= " $term";
+       $topic .= $and.$term;
+       $wherebit .= " $and ( p.publication_title like '%$term%' or MCZBASE.get_publication_authors(p.publication_id) like '%$term%' or  MCZBASE.get_publication_attribute(p.publication_id, 'higher_taxon') like '%$term%' or MCZBASE.get_publication_attribute(p.publication_id, 'genus') like '%$term%' or MCZBASE.get_publication_attribute(p.publication_id, 'other subject') like '%$term%' ) ";
+       $and = " and ";
+    }
+    if ($headbit!="") { 
+       if ($publication!="") { 
+          if ($publication==OTHER) { 
+               $headbit = " in $mczpublication";
+          } else { 
+               $headbit = " in $publication";
+          }
+          if ($topic!="") { 
+             $headbit = "$headbit on $topic";
+          } 
+       } else { 
+          $headbit = " from $topic";
+          $subtitle = "";
+          
+       }
+    }
+    // $mczpublications = " MCZBASE.get_publication_attribute(p.publication_id,'journal name') = 'Breviora' or MCZBASE.get_publication_attribute(p.publication_id,'journal name') = 'Bulletin of the Museum of Comparative Zoology' or MCZBASE.get_publication_attribute(p.publication_id,'journal name') = 'Memoirs of the Museum of Comparative Zoology' ";
+    $mczpublications = " MCZBASE.is_mcz_publication(p.publication_id) = 1 ";
+    if ($wherebit != "") {
+      $wherebit = " where $wherebit and ($mczpublications)  ";
+    }
+    head($headbit);
+    echo "$bhl";
+    $sql="$select from MCZBASE.publication p $wherebit $order";
+    do_query($sql,$headbit);
+    foot();
+    break;
+
+   
+    case "form":
+    default:
+    head(" Search");
+    echo "
+      <!--<p class='mcz_image_pubs'><img src='publications.jpg'></p>
+      <p class='mcz_text_pubs'> The Museum of Comparative Zoology publishes the <a href='$targetpage?publication=bullmcz' target='_blank' title=''>Bulletin of the Museum of Comparative Zoology</a> and <a href='$targetpage?publication=Breviora' target='_blank' title=''>Breviora</a>. These journals contain original contributions concerned with systematics, evolutionary biology, ecology, and other aspects of organismal and comparative biology. </p>-->
+      <div style='width: 100%;clear: both;'>
+    ";
+    echo "<form action='$targetpage' method=GET>
+            <input type=hidden name=mode value=search>
+            <p>Enter the appropriate information from the publication citation (author, year, title) that you wish to find and then click on \"Search Now\".</p>
+            <input type=text name=term value='$term' size='30' >
+            <input type=submit value='Search Now'>
+          </form>";
+    foot();
+
+}
+
+?>
